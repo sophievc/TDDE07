@@ -1,0 +1,262 @@
+---
+title: "TDDE07 - Lab 1"
+author:
+- "Arvid Edenheim - arved490"
+- "Sophie Lindberg - sopli268"
+date: "`r Sys.Date()`"
+output: pdf_document
+header-includes:
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newpage
+
+#1. Bernoulli ... again
+
+## 1a)
+
+The posterior converges towards the true values with rising number of draw, represented below with 10, 100, 1000 draws.
+
+![Convergence](assets/lab_1_1_a.png){width=700,height=30%,}
+
+![Alternative visualization of convergence](assets/lab1_a_convergence.png){heigth=40%}
+
+\newpage
+
+## 1b)
+
+The posterior was simulated with 10000 draws, resulting in $P(\theta < 0.4 | y) = 0.0043$. Real value using pbeta = 0.003973.
+
+## 1c)
+Visualization of the log odds $\phi = log(\frac{\theta}{1-\theta})$ by simulation, using 10000 draws.
+
+![Posterior distribution of the log-odds](assets/lab_1_1_c.png)
+
+\newpage
+
+#2. Log-normal distribution and the Gini coefficient
+
+## 2a)
+
+Simulation of the posterior distribution of $\sigma^{2}$ with 10,000 draws (histogram) compared to the theoretical distribution (line).'
+
+![Posterior of $\sigma^{2}$ by draws and the theoretical posterior](assets/lab_1_2_a.png)
+
+\newpage
+
+## 2b)
+
+The posterior distribution of the Gini coefficient based on the draws in a).
+
+![Gini Coefficient](assets/lab_1_2_b.png)
+
+\newpage
+
+## 2c)
+Due to the long right tail, the Equal Tail Interval was slightliy shifted to the right. The Highest Posterior Density interval produced a better representatition of the data.
+
+![95% Credibility interval](assets/lab_1_2_c.png)
+
+\newpage
+
+#3. Bayesian inference for the concentration parameter in the von Mises distribution
+
+The distribution of $\kappa$ was calculated as the product of the likelihood and the prior, where the likelihood was assumed to be the product of the individual probabilities due to independent observations.
+
+![Posterior distribution and mode ](assets/lab_1_3_ab.png)
+
+\newpage
+
+# 1 - Code
+
+```{r, echo=TRUE, eval=FALSE}
+alpha <- 2
+beta <- 2
+s <- 14
+f <- 6
+n <- 20
+f <- n-s
+nDraws <- c(10, 100, 1000)
+
+# 1a - Random draws from posterior of theta | y ~ Beta(alpha + s, beta + f)
+
+xGrid <- seq(0.001, 0.999, by=0.001)
+posterior = dbeta(xGrid, alpha + s, beta + (n-s))
+trueMean <- (alpha + s)/(alpha + beta + s + f)
+trueStdv <- sqrt(((alpha + s) * ( beta + f)) / ((alpha + beta + n)^2 * (alpha + beta + n + 1)))
+par(mfrow=c(1,3))
+for (draws in nDraws) {
+  random = rbeta(draws, alpha+s, beta+(n-s))
+  hist(random, xlim = c(0,1), freq = FALSE, breaks=10)
+  lines(xGrid, posterior, type='l', col ='red')
+}
+dev.off() 
+
+par(mfrow=c(1,2))
+# Mean and standard deviation
+mean <- c()
+stdv <- c()
+for (i in 1:1000) {
+  random = rbeta(i, alpha+s, beta+(n-s))
+  mean <- c(mean, mean(random))
+  stdv <- c(stdv, sd(random))
+}
+
+# Plot mean to see convergence
+plot(mean, type='l', col='green', xlab = 'n draws')
+abline(h = trueMean)
+legend('topright', legend = 'True mean', col = 'black', lwd = 1)
+
+# Plot standard diviation to see convergence
+plot(stdv, type='l', col='black', xlab='n draws')
+abline(h = trueStdv, col='red')
+legend('topright', legend = 'True stdv', col = 'red', lwd = 1)
+
+
+# 1b - Simulation of Pr(theta < 0.4|y), compared with the real value using pbeta
+nDraws <- 10000
+random = rbeta(nDraws, alpha+s, beta+(n-s))
+print(sum(random < 0.4)/length(random))
+real <- pbeta(.4, alpha + s, beta + (n-s))
+
+
+# 1c - Posterior distribution of the log-odds by simulation
+nDraws <- 10000
+random = rbeta(nDraws, alpha+s, beta+(n-s))
+phi <- log(random/(1 - random))
+plot(density(phi), lwd=1, type='l', col='red', main = expression('Density of' ~ phi))
+
+```
+
+\newpage
+
+# 2 - Code
+```{r echo=TRUE, eval=FALSE}
+library(invgamma)
+
+# -----------A-------------
+income <- c(14,25,45,25,30,33,19,50,34,67)
+#income <- c(1,1,1,1,1,1,1,1,1,1)
+m <- 3.5
+n <- length(income)
+n_draws = 10000
+
+t <- 0
+
+for (v in income) {
+  t <- t + (log(v) - m) ^ 2
+}
+
+tSquared <- t / n
+
+# simulate postarior draws
+
+X_draw <- rchisq(n_draws, n)
+sigma_sq = n*tSquared / X_draw
+
+#theoretical
+
+theoretical <- function(theta, v, s) {
+  return ( ((v/2) ^ (v/2)) / gamma(v/2)  * (s ^ v) * (theta ^ (-(v/2+1))) * exp((-v * s ^ 2) / (2 * theta) ))
+}
+
+range <- seq(0,10,by=0.01)
+mx <- 0 * range
+
+for (i in 1:length(range)) {
+  mx[i] <- theoretical(range[i], length(income), sqrt(tSquared))
+}
+
+# plot
+hist(sigma_sq, 100, freq=FALSE) 
+lines(range, mx, lwd=3, type='l', col='red', xlab = 'sigma')
+
+# -----------B-------------
+z <- sqrt(sigma_sq/2)
+G <- 2*pnorm(z)-1
+
+hist(G, 100, freq = FALSE, xlab="posterior of Gini coefficient", ylab="") # Plot where y = values and x = index of the value in the vector
+
+# -----------C-------------  
+
+cred_int <- quantile(G, probs = c(0.025, 0.975))
+G_dens = density(G)
+y_ordered = G_dens$y[order(-G_dens$y)]
+x_ordered = G_dens$x[order(-G_dens$y)]
+dens_mass = sum(G_dens$y)
+sum <- 0
+current_mass <- 0
+
+for (i in 1:length(y_ordered)) {
+  current_mass <- y_ordered[i] + sum
+  if ((current_mass/dens_mass) > 0.95) {
+    break
+  } else {
+    sum <- current_mass
+  }
+}
+
+a <- min(x_ordered[1:i])
+b <- max(x_ordered[1:i])
+
+plot(density(G), 
+     col='blue', 
+     xlim=c(0.1,0.8), 
+     ylim=c(0,9),
+     main='')
+legend('topright',
+       legend = c('Highest Posterior Density', 'Equal Tail Interval'),
+       fill = c('green', 'red'))
+abline(v=cred_int[1], col='red')
+abline(v=cred_int[2], col='red')
+abline(v=a, col='green')
+abline(v=b, col='green')
+```
+
+\newpage
+
+# 3 - Code
+```{r echo=TRUE, eval=FALSE}
+
+# A: Plot the posterior distribution of k
+# posterior(k | y, mu) = likelihood * prior(k) = prod_prob * prior
+# Plot of the normalized posterior with AUC = 1
+
+y <- c(-2.44, 2.14, 2.54, 1.83, 2.01, 2.33, -2.79, 2.23, 2.07, 2.02)
+gridWidth <- 0.01
+kSeq <- seq(0,10, by=gridWidth)
+mu <- 2.39
+lambda <- 1
+# kappa <- dexp(kSeq, lambda)
+
+mises <- function(k, y, mu) {
+  I <- besselI(k,0)
+  return ((exp(k * cos(y - mu))) / (2 * pi * I))
+}
+
+kPos <- function(k, mu,y) {
+  #prod since independent
+  return ( prod( mises(k, y, mu) ) * dexp(k))
+}
+
+posterior = c()
+for (k in kSeq){
+  posterior = c(posterior, c(kPos(k, mu, y)))
+}
+
+# Plot the normalized posterior with AUC = 1
+normConst <- sum(posterior)
+plot(kSeq, posterior/(normConst*gridWidth),type='l', ylab = 'Normalized Density')
+legend('topright', legend='Mode', fill='red')
+
+# B: Compute the posterior mode of k
+
+kPosMode <- kSeq[which.max(posterior)]
+abline(v=kPosMode, col='red', lwd=1)
+
+```
